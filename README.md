@@ -107,10 +107,24 @@ virtual_staining/
 │
 ├── src/
 │
-│ ├── dataset.py
-│ ├── model.py
-│ ├── loss.py
-│ └── utils.py
+│ ├── config.py            # 统一配置（路径 + 超参）
+│ ├── data/                # 数据处理
+│ │ ├── dataset.py
+│ │ ├── transforms.py
+│ │ └── loaders.py
+│ ├── models/              # 模型结构
+│ │ ├── unet.py
+│ │ └── registry.py
+│ ├── losses/              # 损失函数
+│ │ └── reconstruction.py
+│ ├── metrics/             # 评价指标
+│ │ └── ssim_psnr.py
+│ ├── checkpoints/         # checkpoint 保存/加载
+│ │ └── saver.py
+│ ├── trainer/             # 训练器
+│ │ └── trainer.py
+│ └── inference/           # 推理流程
+│   └── predictor.py
 │
 │
 ├── train.py
@@ -219,43 +233,29 @@ pip install -r requirements.txt
 ￼
 # 7. 训练模型
 
-## 新训练
+## 首次训练
 
-运行：
-
+```bash
 python train.py
+```
 
+首次运行自动创建 `checkpoints/` 目录，训练完成后生成 `last_model.pth`（续训用）和 `best_score_model.pth`（预测用）。
 
 ## 断点续训
 
-运行：
+训练中断后，从上次保存的 `last_model.pth` 恢复：
 
+```bash
 python train.py --resume
+```
 
+恢复内容：模型权重、优化器状态（momentum 等）、epoch 进度、best_score 记录。
 
 ## 训练流程
 
-读取DAPI/CD68数据
-
-↓
-
-划分: train / validation
-
-↓
-
-训练模型
-
-↓
-
-计算Loss
-
-↓
-
-验证Score
-
-↓
-
-保存最佳模型
+```
+DAPI + CD68 → train/val 划分 → 训练 → L1+SSIM Loss → 验证 Score → 保存 checkpoint
+```
 ￼
 8. Loss设计
 当前训练Loss：
@@ -310,7 +310,7 @@ Score =
 checkpoints/best_score_model.pth
 ￼
 10. 模型文件说明
-model.py
+src/models/unet.py + registry.py
 作用：
 定义网络结构。
 当前：
@@ -318,7 +318,7 @@ model.py
 Simplified U-Net
 修改影响：
 复制
-model.py
+src/models/unet.py + registry.py
 
 ↓
 
@@ -329,7 +329,7 @@ predict.py
 如果修改网络结构：
 需要重新训练模型。
 ￼
-dataset.py
+src/data/dataset.py + transforms.py + loaders.py
 作用：
 负责：
 • 数据读取
@@ -337,7 +337,7 @@ dataset.py
 • Tensor转换
 修改影响：
 复制
-dataset.py
+src/data/dataset.py + transforms.py + loaders.py
 
 ↓
 
@@ -350,7 +350,7 @@ predict.py
 • 数据增强
 都会影响训练和预测。
 ￼
-loss.py
+src/losses/reconstruction.py
 作用：
 定义训练优化目标。
 当前：
@@ -358,14 +358,14 @@ loss.py
 L1 + SSIM Loss
 修改影响：
 复制
-loss.py
+src/losses/reconstruction.py
 
 ↓
 
 train.py
 不会影响预测过程。
 ￼
-utils.py
+src/checkpoints/saver.py + src/metrics/ssim_psnr.py
 作用：
 工具函数：
 包括：
@@ -385,7 +385,7 @@ load_checkpoint：
 加载 checkpoint 恢复训练，向后兼容旧格式。
 修改影响：
 复制
-utils.py
+src/checkpoints/saver.py + src/metrics/ssim_psnr.py
 
 ↓
 
@@ -440,26 +440,26 @@ python predict.py
 11. 文件修改影响关系
 整体关系：
 复制
-              dataset.py
+              src/data/
                   |
         --------------------
         |                  |
      train.py          predict.py
 
 
-              model.py
+              src/models/
                   |
         --------------------
         |                  |
      train.py          predict.py
 
 
-              loss.py
+              src/losses/
                   |
               train.py
 
 
-              utils.py
+              src/checkpoints/ + src/metrics/
                   |
               train.py
 ￼
@@ -527,7 +527,44 @@ predict.py 无需修改。仍然直接加载 best_score_model.pth。
 
 旧格式 checkpoint（仅有 4 个原始字段）与新代码完全兼容。
 ￼
-13. 后续优化路线
+13. 训练日志与实验记录
+
+## 日志系统
+
+训练时使用 Python logging 模块，同时输出到终端与日志文件：
+
+logs/
+├── train_20260804_190258.log   # 每次训练一个日志文件
+└── experiments.json            # 全部实验汇总索引（追加）
+
+日志内容按阶段记录：
+
+- 启动阶段：时间、项目名称、git commit、Python/PyTorch 版本、CUDA/GPU 信息
+- 配置阶段：模型名称、参数量、输入尺寸、batch_size、epochs、learning rate、optimizer、scheduler、loss 名称与权重、数据路径、train/val 数量
+- checkpoint 阶段：加载成功/失败、加载路径、resume epoch、best_score、保存路径
+- 训练阶段（每个 epoch）：epoch、train loss、l1 loss、ssim、learning rate、epoch 耗时
+- 验证阶段：val ssim、val psnr、score、是否刷新 best
+- 错误：任何异常通过 logger.exception 写入日志
+
+## 实验记录
+
+每次训练自动生成一条实验摘要：
+
+experiments/
+└── experiment_20260804_190300.json
+
+同时追加到 logs/experiments.json 索引，方便对比不同模型实验。
+
+每条记录包含：模型名称、参数配置、时间、checkpoint 路径、最终 score、最佳 epoch。
+
+运行方式不变：
+
+- python train.py
+- python train.py --resume
+- python predict.py
+
+￼
+14. 后续优化路线
 V1 当前Baseline
 已完成：
 • 简化U-Net
@@ -542,7 +579,7 @@ V1 当前Baseline
 V2 模型结构优化
 修改：
 复制
-src/model.py
+src/models/unet.py + registry.py
 方向：
 • 完整U-Net Skip Connection
 • Attention U-Net
@@ -553,7 +590,7 @@ src/model.py
 V3 数据增强
 修改：
 复制
-src/dataset.py
+src/data/dataset.py + transforms.py + loaders.py
 加入：
 • 随机翻转
 • 旋转
@@ -565,7 +602,7 @@ src/dataset.py
 V4 Loss优化
 修改：
 复制
-src/loss.py
+src/losses/reconstruction.py
 方向：
 • Edge Loss
 • Perceptual Loss
@@ -585,7 +622,7 @@ train.py
 • Early stopping
 • 多模型融合
 ￼
-14. 当前实验记录
+15. 当前实验记录
 Baseline V1
 模型：
 Simplified U-Net

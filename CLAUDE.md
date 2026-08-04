@@ -225,13 +225,41 @@ virtual_staining
 
 ├── src
 
-│ ├── dataset.py
+│ ├── config.py
 
-│ ├── model.py
+│ ├── data
 
-│ ├── loss.py
+│ │ ├── dataset.py
 
-│ └── utils.py
+│ │ ├── transforms.py
+
+│ │ └── loaders.py
+
+│ ├── models
+
+│ │ ├── unet.py
+
+│ │ └── registry.py
+
+│ ├── losses
+
+│ │ └── reconstruction.py
+
+│ ├── metrics
+
+│ │ └── ssim_psnr.py
+
+│ ├── checkpoints
+
+│ │ └── saver.py
+
+│ ├── trainer
+
+│ │ └── trainer.py
+
+│ └── inference
+
+│   └── predictor.py
 
 ├── data
 
@@ -246,7 +274,13 @@ virtual_staining
 # 8. 文件职责
 
 
-## dataset.py
+## src/data/
+
+包含：
+
+- dataset.py: VirtualStainingDataset（数据读取 + 预处理）
+- transforms.py: 图片预处理函数
+- loaders.py: train/val DataLoader 构建（划分/seed/batch）
 
 
 负责：
@@ -256,7 +290,7 @@ virtual_staining
 - Tensor转换
 
 
-修改dataset时：
+修改src/data时：
 
 必须检查：
 
@@ -269,7 +303,12 @@ predict.py
 ---
 
 
-## model.py
+## src/models/
+
+包含：
+
+- unet.py: UNet 结构（当前 U-Net）
+- registry.py: 模型注册表 + build_model 工厂
 
 
 负责：
@@ -282,7 +321,7 @@ predict.py
 U-Net
 
 
-修改model时：
+修改src/models时：
 
 必须检查：
 
@@ -297,7 +336,12 @@ predict.py
 ---
 
 
-## loss.py
+## src/losses/
+
+包含：
+
+- reconstruction.py: ReconstructionLoss（当前 L1 + SSIM）
+- __init__.py: loss 注册表 + build_loss 工厂
 
 
 负责：
@@ -322,7 +366,12 @@ L1 + SSIM
 ---
 
 
-## utils.py
+## src/checkpoints/ + src/metrics/
+
+包含：
+
+- src/checkpoints/saver.py: checkpoint保存/加载
+- src/metrics/ssim_psnr.py: SSIM/PSNR/Score计算
 
 
 负责：
@@ -336,6 +385,11 @@ L1 + SSIM
 
 
 禁止随意修改checkpoint格式。
+
+新增子模块：
+
+- src/trainer/trainer.py: 训练器（训练循环 + 验证 + resume + 保存）
+- src/inference/predictor.py: 推理流程
 
 
 
@@ -519,3 +573,55 @@ Transformer大模型
 所有优化必须优先保证：
 
 当前baseline可运行。
+
+13. 日志与实验记录
+
+## 日志
+
+训练使用 Python logging 模块（src/utils/logger.py）。
+
+日志文件：
+
+logs/train_*.log
+
+自动记录：
+
+- 启动信息（时间、项目名、git commit、Python/PyTorch版本、CUDA/GPU）
+- 配置信息（模型、参数量、尺寸、batch、epoch、lr、optimizer、scheduler、loss、数据路径、train/val数量）
+- checkpoint加载/保存
+- 每epoch训练与验证指标（含是否刷新best）
+- 异常
+
+修改日志时：
+
+必须说明：
+
+是否影响训练行为。
+
+禁止：
+
+- 删除或移动logging配置
+- 改变训练循环顺序（日志只增不改）
+
+## 实验记录
+
+每次训练自动生成：
+
+experiments/experiment_*.json
+
+并追加到：
+
+logs/experiments.json
+
+记录：
+
+- 模型名称
+- 参数配置
+- 时间
+- checkpoint路径
+- 最终score
+- 最佳epoch
+
+用途：
+
+方便比较不同模型实验结果。

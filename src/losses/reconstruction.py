@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 
 
-
 class ReconstructionLoss(nn.Module):
     """
     虚拟染色训练Loss
@@ -22,7 +21,6 @@ class ReconstructionLoss(nn.Module):
 
     """
 
-
     def __init__(
             self,
             ssim_weight=0.5
@@ -30,19 +28,15 @@ class ReconstructionLoss(nn.Module):
 
         super().__init__()
 
-
         self.l1 = nn.L1Loss()
 
         self.ssim_weight = ssim_weight
-
-
 
     def simple_ssim(
             self,
             x,
             y
     ):
-
         """
         简化版SSIM
 
@@ -54,7 +48,6 @@ class ReconstructionLoss(nn.Module):
 
         C2 = 0.03 ** 2
 
-
         mu_x = torch.mean(
             x
         )
@@ -62,7 +55,6 @@ class ReconstructionLoss(nn.Module):
         mu_y = torch.mean(
             y
         )
-
 
         sigma_x = torch.var(
             x
@@ -72,26 +64,23 @@ class ReconstructionLoss(nn.Module):
             y
         )
 
-
         sigma_xy = torch.mean(
-            (x-mu_x)*(y-mu_y)
+            (x - mu_x) * (y - mu_y)
         )
-
 
         ssim = (
 
-            (2*mu_x*mu_y+C1)
+            (2 * mu_x * mu_y + C1)
             *
-            (2*sigma_xy+C2)
+            (2 * sigma_xy + C2)
 
         ) / (
 
-            (mu_x**2+mu_y**2+C1)
+            (mu_x ** 2 + mu_y ** 2 + C1)
             *
-            (sigma_x+sigma_y+C2)
+            (sigma_x + sigma_y + C2)
 
         )
-
 
         return ssim
 

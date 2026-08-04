@@ -1,69 +1,41 @@
-import os
 import argparse
-import time
 
 import torch
 
-from torch.utils.data import DataLoader, random_split
-
-from src.dataset import VirtualStainingDataset
-from src.model import UNet
-from src.loss import ReconstructionLoss
-from src.utils import (
-    save_checkpoint,
-    save_best_checkpoint,
-    load_checkpoint,
-    calculate_ssim,
-    calculate_psnr,
-    calculate_score,
+from src.config import (
+    DEVICE,
+    TRAIN_DAPI_DIR,
+    TRAIN_TARGET_DIR,
+    CHECKPOINT_DIR,
+    LAST_MODEL_PATH,
+    BEST_MODEL_PATH,
+    LOG_DIR,
+    EXPERIMENT_DIR,
+    PROJECT_NAME,
+    BATCH_SIZE,
+    VAL_RATIO,
+    SEED,
+    NUM_WORKERS,
+    IMAGE_SIZE,
+    EPOCHS,
+    LEARNING_RATE,
+    SSIM_WEIGHT,
+    MODEL_NAME,
+    LOSS_NAME,
+    OPTIMIZER_NAME,
+    SCHEDULER_NAME,
+)
+from src.data.loaders import build_train_val_loaders
+from src.models import build_model
+from src.losses import build_loss
+from src.trainer.trainer import Trainer
+from src.utils.logger import (
+    setup_logging,
+    get_startup_info,
+    log_training_config,
+    ExperimentRecorder,
 )
 
-# ======================
-# 设备
-# ======================
-
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
-# ======================
-# 路径常量
-# ======================
-
-CHECKPOINT_DIR = "./checkpoints"
-LAST_MODEL_PATH = os.path.join(CHECKPOINT_DIR, "last_model.pth")
-BEST_MODEL_PATH = os.path.join(CHECKPOINT_DIR, "best_score_model.pth")
-
-
-# ======================
-# 验证函数
-# ======================
-
-def validate(model, loader):
-    model.eval()
-    total_ssim = 0.0
-    total_psnr = 0.0
-
-    with torch.no_grad():
-        for x, y in loader:
-            x = x.to(DEVICE)
-            y = y.to(DEVICE)
-            pred = model(x)
-
-            ssim = calculate_ssim(pred, y)
-            psnr = calculate_psnr(pred, y)
-
-            total_ssim += ssim
-            total_psnr += psnr
-
-    avg_ssim = total_ssim / len(loader)
-    avg_psnr = total_psnr / len(loader)
-    score = calculate_score(avg_ssim, avg_psnr)
-
-    return avg_ssim, avg_psnr, score
-
-
-# ======================
-# 主函数
-# ======================
 
 def train():
     parser = argparse.ArgumentParser(description="Virtual Staining Training")
@@ -74,166 +46,126 @@ def train():
     )
     args = parser.parse_args()
 
-    print("=" * 60)
-    print("Virtual Staining Training")
-    print(f"Device: {DEVICE}")
-    if DEVICE == "cuda":
-        print(f"GPU: {torch.cuda.get_device_name(0)}")
-    print(f"Resume: {'yes' if args.resume else 'no'}")
-    print("=" * 60)
-
     # ======================
-    # Dataset
+    # 日志系统
     # ======================
 
-    dataset = VirtualStainingDataset(
-        dapi_dir="./data/train/DAPI",
-        target_dir="./data/train/CD68",
+    logger, log_path = setup_logging(LOG_DIR, run_tag="train")
+
+    # 启动阶段
+    startup = get_startup_info(PROJECT_NAME)
+    logger.info("=" * 60)
+    logger.info("Virtual Staining Training")
+    for key, value in startup.items():
+        logger.info(f"  {key}: {value}")
+    logger.info(f"  resume: {args.resume}")
+    logger.info("=" * 60)
+
+    # ======================
+    # Dataset / Loaders
+    # ======================
+
+    train_loader, val_loader, n_train, n_val, n_total = build_train_val_loaders(
+        dapi_dir=TRAIN_DAPI_DIR,
+        target_dir=TRAIN_TARGET_DIR,
+        batch_size=BATCH_SIZE,
+        val_ratio=VAL_RATIO,
+        seed=SEED,
+        num_workers=NUM_WORKERS,
+        image_size=IMAGE_SIZE,
     )
-    print(f"Dataset size: {len(dataset)}")
+    logger.info(f"Dataset size: {n_total}")
+    logger.info(f"Train: {n_train}, Validation: {n_val}")
 
     # ======================
-    # Train / Val split
+    # Model / Loss
     # ======================
 
-    train_size = int(len(dataset) * 0.9)
-    val_size = len(dataset) - train_size
+    model = build_model(MODEL_NAME).to(DEVICE)
+    logger.info("Model loaded")
+    param_count = sum(p.numel() for p in model.parameters())
 
-    train_dataset, val_dataset = random_split(
-        dataset,
-        [train_size, val_size],
-        generator=torch.Generator().manual_seed(42),
+    criterion = build_loss(LOSS_NAME, ssim_weight=SSIM_WEIGHT)
+
+    # 配置阶段
+    log_training_config(logger, {
+        "model": MODEL_NAME,
+        "param_count": param_count,
+        "image_size": IMAGE_SIZE,
+        "batch_size": BATCH_SIZE,
+        "epochs": EPOCHS,
+        "learning_rate": LEARNING_RATE,
+        "optimizer": OPTIMIZER_NAME,
+        "scheduler": SCHEDULER_NAME,
+        "loss": LOSS_NAME,
+        "ssim_weight": SSIM_WEIGHT,
+        "dapi_dir": TRAIN_DAPI_DIR,
+        "target_dir": TRAIN_TARGET_DIR,
+        "n_train": n_train,
+        "n_val": n_val,
+    })
+
+    # ======================
+    # Trainer
+    # ======================
+
+    trainer = Trainer(
+        model=model,
+        criterion=criterion,
+        device=DEVICE,
+        lr=LEARNING_RATE,
+        epochs=EPOCHS,
+        checkpoint_dir=CHECKPOINT_DIR,
+        last_model_path=LAST_MODEL_PATH,
+        best_model_path=BEST_MODEL_PATH,
     )
 
-    print(f"Train: {len(train_dataset)}, Validation: {len(val_dataset)}")
-
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=4,
-        shuffle=True,
-        num_workers=0,
-    )
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=4,
-        shuffle=False,
-        num_workers=0,
-    )
+    try:
+        trainer.fit(train_loader, val_loader, resume=args.resume)
+    except Exception:
+        logger.exception("Training failed with exception")
+        raise
 
     # ======================
-    # Model
+    # 实验记录
     # ======================
 
-    model = UNet().to(DEVICE)
-    print("Model loaded")
+    record = {
+        "time": startup["time"],
+        "project_name": PROJECT_NAME,
+        "git_commit": startup["git_commit"],
+        "model": MODEL_NAME,
+        "param_count": param_count,
+        "config": {
+            "image_size": IMAGE_SIZE,
+            "batch_size": BATCH_SIZE,
+            "epochs": EPOCHS,
+            "learning_rate": LEARNING_RATE,
+            "optimizer": OPTIMIZER_NAME,
+            "scheduler": SCHEDULER_NAME,
+            "loss": LOSS_NAME,
+            "ssim_weight": SSIM_WEIGHT,
+            "val_ratio": VAL_RATIO,
+            "seed": SEED,
+            "dapi_dir": TRAIN_DAPI_DIR,
+            "target_dir": TRAIN_TARGET_DIR,
+            "n_train": n_train,
+            "n_val": n_val,
+        },
+        "checkpoint": {
+            "last_model_path": LAST_MODEL_PATH,
+            "best_score_model_path": BEST_MODEL_PATH,
+            "history_best_dir": CHECKPOINT_DIR,
+        },
+        "log_path": log_path,
+        "resume": args.resume,
+        "final_score": trainer.best_score,
+        "best_epoch": trainer.best_epoch,
+    }
 
-    # ======================
-    # Loss & Optimizer
-    # ======================
-
-    criterion = ReconstructionLoss(ssim_weight=0.5)
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
-
-    epochs = 20
-    best_score = -1.0
-    start_epoch = 0
-
-    # ======================
-    # Resume
-    # ======================
-
-    if args.resume:
-        if not os.path.exists(LAST_MODEL_PATH):
-            print(
-                f"\n[Error] --resume specified but checkpoint not found:\n"
-                f"  {LAST_MODEL_PATH}\n"
-                f"  Train without --resume first, or check the path."
-            )
-            return
-
-        start_epoch, best_score = load_checkpoint(
-            LAST_MODEL_PATH, model, optimizer, DEVICE
-        )
-
-    # ======================
-    # Training loop
-    # ======================
-
-    for epoch in range(start_epoch, epochs):
-        start = time.time()
-
-        model.train()
-        total_loss = 0.0
-        total_l1 = 0.0
-        total_ssim = 0.0
-
-        print(f"\nEpoch [{epoch + 1}/{epochs}]")
-
-        for batch_idx, (x, y) in enumerate(train_loader):
-            x = x.to(DEVICE)
-            y = y.to(DEVICE)
-
-            pred = model(x)
-            loss, l1_loss, ssim = criterion(pred, y)
-
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            total_loss += loss.item()
-            total_l1 += l1_loss.item()
-            total_ssim += ssim.item()
-
-            if batch_idx % 50 == 0:
-                print()
-                print(f"  Batch [{batch_idx}/{len(train_loader)}]")
-                print(f"  Total Loss: {loss.item():.6f}")
-                print(f"  L1 Loss: {l1_loss.item():.6f}")
-                print(f"  SSIM: {ssim.item():.6f}")
-
-        avg_loss = total_loss / len(train_loader)
-        avg_l1 = total_l1 / len(train_loader)
-        avg_ssim = total_ssim / len(train_loader)
-
-        print(f"\n{'-' * 50}")
-        print(f"Train | Total Loss: {avg_loss:.6f} | L1: {avg_l1:.6f} | SSIM: {avg_ssim:.6f}")
-
-        # ======================
-        # Validation
-        # ======================
-
-        val_ssim, val_psnr, val_score = validate(model, val_loader)
-        val_metrics = (val_ssim, val_psnr, val_score)
-
-        print(f"Val   | SSIM: {val_ssim:.6f} | PSNR: {val_psnr:.6f} | Score: {val_score:.6f}")
-
-        if val_score > best_score:
-            best_score = val_score
-
-            saved_path = save_best_checkpoint(
-                model, optimizer, epoch, best_score, CHECKPOINT_DIR, val_metrics
-            )
-            print(f"  >>> New best! Saved: {os.path.basename(saved_path)}")
-
-            save_checkpoint(
-                model, optimizer, epoch, best_score, BEST_MODEL_PATH, val_metrics
-            )
-            print(f"  >>> Predict copy updated (best_score_model.pth)")
-
-        # ======================
-        # Save last checkpoint
-        # ======================
-
-        save_checkpoint(
-            model, optimizer, epoch, best_score, LAST_MODEL_PATH, val_metrics
-        )
-        print(f"  Last checkpoint saved")
-
-        print(f"  Epoch time: {time.time() - start:.2f}s")
-        print(f"{'-' * 50}")
-
-    print(f"\nTraining Finished!")
-    print(f"Best Score: {best_score:.6f}")
+    recorder = ExperimentRecorder(LOG_DIR, EXPERIMENT_DIR)
+    experiment_path = recorder.save_record(record)
+    logger.info(f"Experiment record saved: {experiment_path}")
 
 
 if __name__ == "__main__":
