@@ -1,8 +1,14 @@
 import os
 
 import torch
-from PIL import Image
 from torchvision import transforms
+
+from ..data.transforms import (
+    read_grayscale,
+    resize_to_square,
+    normalize_to_01,
+    to_single_channel_tensor,
+)
 
 
 def load_model(model, checkpoint_path, device):
@@ -35,17 +41,12 @@ def load_model(model, checkpoint_path, device):
 
 
 def predict_image(model, image_path, device, image_size=256):
-    """单张预测，返回 PIL 图像。预处理与原 predict.py 相同。"""
-    transform = transforms.Compose(
-        [
-            transforms.Resize((image_size, image_size)),
-            transforms.ToTensor(),
-        ]
-    )
+    """单张预测，返回 PIL 图像。预处理与训练侧完全一致（cv2 读图/resize/归一化）。"""
+    img = read_grayscale(image_path)
+    img = resize_to_square(img, image_size)
+    img = normalize_to_01(img)
+    x = to_single_channel_tensor(img)
 
-    image = Image.open(image_path).convert("L")
-
-    x = transform(image)
     x = x.unsqueeze(0)
     x = x.to(device)
 

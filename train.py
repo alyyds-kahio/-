@@ -44,7 +44,14 @@ def train():
         action="store_true",
         help="Resume training from last_model.pth",
     )
+    parser.add_argument(
+        "--model",
+        default=MODEL_NAME,
+        help=f"Model name override (default from config: {MODEL_NAME})",
+    )
     args = parser.parse_args()
+
+    model_name = args.model
 
     # ======================
     # 日志系统
@@ -81,15 +88,15 @@ def train():
     # Model / Loss
     # ======================
 
-    model = build_model(MODEL_NAME).to(DEVICE)
-    logger.info("Model loaded")
+    model = build_model(model_name).to(DEVICE)
+    logger.info(f"Model loaded: {model_name}")
     param_count = sum(p.numel() for p in model.parameters())
 
     criterion = build_loss(LOSS_NAME, ssim_weight=SSIM_WEIGHT)
 
     # 配置阶段
     log_training_config(logger, {
-        "model": MODEL_NAME,
+        "model": model_name,
         "param_count": param_count,
         "image_size": IMAGE_SIZE,
         "batch_size": BATCH_SIZE,
@@ -134,7 +141,7 @@ def train():
         "time": startup["time"],
         "project_name": PROJECT_NAME,
         "git_commit": startup["git_commit"],
-        "model": MODEL_NAME,
+        "model": model_name,
         "param_count": param_count,
         "config": {
             "image_size": IMAGE_SIZE,

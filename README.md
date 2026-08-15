@@ -565,6 +565,10 @@ experiments/
 
 ￼
 14. 后续优化路线
+
+> 更新（2026-08-15）：后续优化的唯一总计划见 `experiments/OPTIMIZATION_PLAN.md`。
+> 以下 V1-V5 为历史规划，保留参考。
+
 V1 当前Baseline
 已完成：
 • 简化U-Net
