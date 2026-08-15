@@ -436,6 +436,11 @@ Bash
 复制
 ￼
 python predict.py
+
+带参数运行（切换模型 / 自定义 checkpoint）：
+python predict.py --model unet_skip    # 用 unet_skip 结构加载权重
+python predict.py --ckpt <路径>         # 指定 checkpoint（默认 best_score_model.pth）
+注意：--model 必须与 checkpoint 对应，否则权重加载失败。
 ￼
 11. 文件修改影响关系
 整体关系：

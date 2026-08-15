@@ -100,6 +100,8 @@ def evaluate(model, loader, device):
 def main():
     parser = argparse.ArgumentParser(description="E01 真实指标评估")
     parser.add_argument("--ckpt", default=BEST_MODEL_PATH, help="checkpoint 路径")
+    parser.add_argument("--model", default=MODEL_NAME,
+                        help=f"模型名(默认从 config: {MODEL_NAME})")
     parser.add_argument("--split", default="val", choices=["val", "train"],
                         help="评估集：val(默认) 或 train")
     args = parser.parse_args()
@@ -112,7 +114,7 @@ def main():
     loader = val_loader if args.split == "val" else train_loader
     n_loader = n_val if args.split == "val" else n_train
 
-    model = build_model(MODEL_NAME).to(DEVICE)
+    model = build_model(args.model).to(DEVICE)
     model = load_model(model, args.ckpt, DEVICE)
 
     print("=" * 60)
