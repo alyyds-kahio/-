@@ -43,9 +43,8 @@ CD68 虚拟染色图像
 
 ## Baseline Version
 
-当前模型：
-Simplified U-Net
-复制
+当前默认模型：
+`unet`（2 层 U-Net，无 skip connection）
 特点：
 
 - Encoder-Decoder结构
@@ -53,17 +52,15 @@ Simplified U-Net
 - 单通道输出
 - 输出使用 Sigmoid 映射到 0~1
 
+可切换的模型（通过 `--model` 或 config.MODEL_NAME）：
 
-当前未使用：
+- `unet`（默认，2 层无 skip）
+- `unet_skip`（2 层 + skip connection）：已验证有效，E05 模型对比基准（真实 SSIM 0.7526 / Score 0.6658）
+- `unet_skip4`（4 层 + skip connection）：已实现并冒烟通过，待评估
 
-- Skip Connection
-- Attention
-- Transformer
-- GAN
-- Diffusion
+本阶段未使用：Attention / Transformer / GAN / Diffusion。
 
-
-后续优化可在此基础上扩展。
+数据增强：D4 离散几何增强已实现，但**默认关闭**（`config.AUGMENT=False`）；Loss 为 L1 + 真实局部窗口 SSIM。
 
 
 ---
@@ -430,7 +427,7 @@ test/DAPI
 
 ↓
 
-保存到results/
+保存到results/test/CD68/（官方提交格式，文件名带 _fake 后缀）
 运行：
 Bash
 复制
@@ -441,6 +438,16 @@ python predict.py
 python predict.py --model unet_skip    # 用 unet_skip 结构加载权重
 python predict.py --ckpt <路径>         # 指定 checkpoint（默认 best_score_model.pth）
 注意：--model 必须与 checkpoint 对应，否则权重加载失败。
+
+输出格式（官方提交）：
+results/
+└── test/
+    └── CD68/
+        └── ROI025_00_00_fake.jpg   # 输入名 + _fake
+
+清理预测结果：
+python clean_results.py               # 询问确认后清空 results/
+python clean_results.py --yes         # 跳过确认直接清空
 ￼
 11. 文件修改影响关系
 整体关系：

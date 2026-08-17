@@ -44,7 +44,7 @@ VAL_RATIO = 0.1          # 验证集比例（train 占 1 - VAL_RATIO）
 SEED = 42
 NUM_WORKERS = 0
 BATCH_SIZE = 4
-AUGMENT = True           # 训练集启用 D4 离散几何数据增强
+AUGMENT = False          # D4 数据增强默认关闭（实验结论：暂不采用为默认；改回 True 可重新启用）
 
 
 # ======================

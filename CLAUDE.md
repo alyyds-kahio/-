@@ -111,9 +111,11 @@ jpg
 # 4. 当前Baseline
 
 
-模型：
+模型（`src/models/` + registry）：
 
-U-Net
+- `unet`（默认，2 层无 skip）
+- `unet_skip`（2 层 + skip，E05 模型对比基准）
+- `unet_skip4`（4 层 + skip，已实现待评估）
 
 
 输入：
@@ -145,16 +147,15 @@ CD68灰度图
 
 当前：
 
-ReconstructionLoss
+ReconstructionLoss（`src/losses/reconstruction.py`）
 
 
 包含：
 
+- L1 Loss
+- 真实局部窗口 SSIM Loss（E07 已替换旧的全局均值版）
 
-L1 Loss
-
-
-SSIM Loss
+Loss = L1 + 0.5×(1 - 真实SSIM)
 
 
 
