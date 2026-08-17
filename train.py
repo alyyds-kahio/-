@@ -24,6 +24,7 @@ from src.config import (
     LOSS_NAME,
     OPTIMIZER_NAME,
     SCHEDULER_NAME,
+    AUGMENT,
 )
 from src.data.loaders import build_train_val_loaders
 from src.models import build_model
@@ -80,6 +81,7 @@ def train():
         seed=SEED,
         num_workers=NUM_WORKERS,
         image_size=IMAGE_SIZE,
+        augment=AUGMENT,
     )
     logger.info(f"Dataset size: {n_total}")
     logger.info(f"Train: {n_train}, Validation: {n_val}")
@@ -110,6 +112,7 @@ def train():
         "target_dir": TRAIN_TARGET_DIR,
         "n_train": n_train,
         "n_val": n_val,
+        "augment": AUGMENT,
     })
 
     # ======================
@@ -158,6 +161,7 @@ def train():
             "target_dir": TRAIN_TARGET_DIR,
             "n_train": n_train,
             "n_val": n_val,
+            "augment": AUGMENT,
         },
         "checkpoint": {
             "last_model_path": LAST_MODEL_PATH,

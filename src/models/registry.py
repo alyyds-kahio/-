@@ -1,9 +1,10 @@
-from .unet import UNet, UNetSkip
+from .unet import UNet, UNetSkip, UNetSkip4
 
 
 MODEL_REGISTRY = {
     "unet": UNet,
     "unet_skip": UNetSkip,
+    "unet_skip4": UNetSkip4,
 }
 
 

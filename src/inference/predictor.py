@@ -63,7 +63,10 @@ def predict_image(model, image_path, device, image_size=256):
 
 
 def predict_dir(model, input_dir, output_dir, device, image_size=256):
-    """批量预测：输入目录内所有图片，输出到 output_dir，保持原文件名。"""
+    """批量预测：输入目录内所有图片，输出到 output_dir。
+
+    命名遵循官方规则：输入名 + "_fake"，如 ROI025_00_00.jpg -> ROI025_00_00_fake.jpg。
+    """
     os.makedirs(output_dir, exist_ok=True)
 
     files = os.listdir(input_dir)
@@ -74,7 +77,8 @@ def predict_dir(model, input_dir, output_dir, device, image_size=256):
             continue
 
         input_path = os.path.join(input_dir, filename)
-        output_path = os.path.join(output_dir, filename)
+        stem, ext = os.path.splitext(filename)
+        output_path = os.path.join(output_dir, stem + "_fake" + ext)
 
         result = predict_image(model, input_path, device, image_size)
         result.save(output_path)

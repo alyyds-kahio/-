@@ -1,4 +1,5 @@
 import argparse
+import os
 
 from src.models import build_model
 from src.inference.predictor import load_model, predict_dir
@@ -26,9 +27,12 @@ def main():
     )
     args = parser.parse_args()
 
+    # 官方提交格式：results/test/CD68/*_fake.jpg
+    output_dir = os.path.join(OUTPUT_DIR, "test", "CD68")
+
     model = build_model(args.model).to(DEVICE)
     model = load_model(model, args.ckpt, DEVICE)
-    predict_dir(model, INPUT_DIR, OUTPUT_DIR, DEVICE, IMAGE_SIZE)
+    predict_dir(model, INPUT_DIR, output_dir, DEVICE, IMAGE_SIZE)
 
 
 if __name__ == "__main__":
