@@ -1,10 +1,12 @@
 from .unet import UNet, UNetSkip, UNetSkip4
+from .pix2pix_unet import Pix2PixUNet
 
 
 MODEL_REGISTRY = {
     "unet": UNet,
     "unet_skip": UNetSkip,
     "unet_skip4": UNetSkip4,
+    "pix2pix_unet": Pix2PixUNet,
 }
 
 

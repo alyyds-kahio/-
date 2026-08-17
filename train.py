@@ -1,4 +1,5 @@
 import argparse
+import os
 
 import torch
 
@@ -49,6 +50,11 @@ def train():
         "--model",
         default=MODEL_NAME,
         help=f"Model name override (default from config: {MODEL_NAME})",
+    )
+    parser.add_argument(
+        "--ckpt-dir",
+        default=None,
+        help="Checkpoint 输出目录（按模型隔离，如 checkpoints/E06_pix2pix_unet）",
     )
     args = parser.parse_args()
 
@@ -119,15 +125,24 @@ def train():
     # Trainer
     # ======================
 
+    if args.ckpt_dir:
+        checkpoint_dir = args.ckpt_dir
+        last_model_path = os.path.join(checkpoint_dir, "last_model.pth")
+        best_model_path = os.path.join(checkpoint_dir, "best_score_model.pth")
+    else:
+        checkpoint_dir = CHECKPOINT_DIR
+        last_model_path = LAST_MODEL_PATH
+        best_model_path = BEST_MODEL_PATH
+
     trainer = Trainer(
         model=model,
         criterion=criterion,
         device=DEVICE,
         lr=LEARNING_RATE,
         epochs=EPOCHS,
-        checkpoint_dir=CHECKPOINT_DIR,
-        last_model_path=LAST_MODEL_PATH,
-        best_model_path=BEST_MODEL_PATH,
+        checkpoint_dir=checkpoint_dir,
+        last_model_path=last_model_path,
+        best_model_path=best_model_path,
     )
 
     try:
