@@ -202,3 +202,56 @@ class UNetSkip4(nn.Module):
 
         out = self.output(d)         # [1, H, W]
         return torch.sigmoid(out)
+
+
+class UNetSkip4S(nn.Module):
+    """E05.5：4 层 UNet + Skip，通道预算与 E06 pix2pix_unet 相同（32→64→128→256）。
+
+    与 pix2pix_unet 的区别（隔离"结构风格"的影响）：
+    - 用 unet_skip 的 DoubleConv(Conv3×3+ReLU ×2) 块，而非 Conv+BN+LeakyReLU
+    - 下采样用 MaxPool2d，而非 stride-2 conv
+    - 无 BatchNorm
+    """
+
+    def __init__(self, features=(32, 64, 128, 256)):
+        super().__init__()
+
+        self.pool = nn.MaxPool2d(2)
+
+        self.encs = nn.ModuleList()
+        prev = 1
+        for f in features:
+            self.encs.append(DoubleConv(prev, f))
+            prev = f
+
+        rev = list(reversed(features))
+        self.ups = nn.ModuleList()      # 带 skip 的上采样块（rev[i] -> rev[i+1]）
+        self.decs = nn.ModuleList()
+        for i in range(len(rev) - 1):
+            # up 输出 rev[i+1] 通道，skip 为 rev[i] 通道 → 拼接后 rev[i+1]+rev[i]
+            self.ups.append(nn.ConvTranspose2d(rev[i], rev[i + 1], 2, stride=2))
+            self.decs.append(DoubleConv(rev[i + 1] + rev[i], rev[i + 1]))
+
+        # 最后一层上采样（无 skip）
+        self.last_up = nn.ConvTranspose2d(rev[-1], rev[-1], 2, stride=2)
+        self.last_dec = DoubleConv(rev[-1], rev[-1])
+        self.output = nn.Conv2d(rev[-1], 1, 1)
+
+    def forward(self, x):
+        skips = []
+        for enc in self.encs:
+            x = enc(x)
+            skips.append(x)            # e1@256, e2@128, e3@64, e4@32
+            x = self.pool(x)
+        # 此处 x = bottleneck（features[-1] @ H/16）
+
+        for i in range(len(self.ups)):
+            x = self.ups[i](x)
+            skip = skips[len(skips) - 1 - i]   # e4, e3, e2（与上采样后尺寸对齐）
+            x = torch.cat([x, skip], dim=1)
+            x = self.decs[i](x)
+
+        x = self.last_up(x)
+        x = self.last_dec(x)
+        out = self.output(x)
+        return torch.sigmoid(out)

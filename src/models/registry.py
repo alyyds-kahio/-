@@ -1,12 +1,29 @@
-from .unet import UNet, UNetSkip, UNetSkip4
+from .unet import UNet, UNetSkip, UNetSkip4, UNetSkip4S
 from .pix2pix_unet import Pix2PixUNet
+from .pix2pix_resnet import Pix2PixResNet
+from .resunet import ResUNet
+
+
+def _pix2pix_unet_wide():
+    """E06-W1：Pix2Pix-UNet 加宽（channels 48,96,192,384）。"""
+    return Pix2PixUNet(features=(48, 96, 192, 384))
+
+
+def _pix2pix_unet_deep():
+    """E06-Deep：Pix2Pix-UNet 加深（5 stage，channels 54,80,128,192,256，MACs≈6.99G 匹配 E05.5）。"""
+    return Pix2PixUNet(features=(54, 80, 128, 192, 256))
 
 
 MODEL_REGISTRY = {
     "unet": UNet,
     "unet_skip": UNetSkip,
     "unet_skip4": UNetSkip4,
+    "unet_skip4s": UNetSkip4S,
     "pix2pix_unet": Pix2PixUNet,
+    "pix2pix_unet_wide": _pix2pix_unet_wide,
+    "pix2pix_unet_deep": _pix2pix_unet_deep,
+    "pix2pix_resnet": Pix2PixResNet,
+    "resunet": ResUNet,
 }
 
 
