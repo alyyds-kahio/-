@@ -26,6 +26,13 @@ from src.config import (
     OPTIMIZER_NAME,
     SCHEDULER_NAME,
     AUGMENT,
+    USE_EMA,
+    EMA_DECAY,
+    WEIGHT_DECAY,
+    GRAD_ACCUM_STEPS,
+    USE_GRAD_CLIP,
+    GRAD_CLIP_MAX_NORM,
+    USE_ROI_SPLIT,
 )
 from src.data.loaders import build_train_val_loaders
 from src.models import build_model
@@ -88,6 +95,7 @@ def train():
         num_workers=NUM_WORKERS,
         image_size=IMAGE_SIZE,
         augment=AUGMENT,
+        roi_split=USE_ROI_SPLIT,
     )
     logger.info(f"Dataset size: {n_total}")
     logger.info(f"Train: {n_train}, Validation: {n_val}")
@@ -119,6 +127,12 @@ def train():
         "n_train": n_train,
         "n_val": n_val,
         "augment": AUGMENT,
+        "use_ema": USE_EMA,
+        "ema_decay": EMA_DECAY,
+        "weight_decay": WEIGHT_DECAY,
+        "grad_accum_steps": GRAD_ACCUM_STEPS,
+        "use_grad_clip": USE_GRAD_CLIP,
+        "roi_split": USE_ROI_SPLIT,
     })
 
     # ======================
@@ -143,6 +157,12 @@ def train():
         checkpoint_dir=checkpoint_dir,
         last_model_path=last_model_path,
         best_model_path=best_model_path,
+        scheduler_name=SCHEDULER_NAME,
+        use_ema=USE_EMA,
+        ema_decay=EMA_DECAY,
+        weight_decay=WEIGHT_DECAY,
+        grad_clip_max_norm=GRAD_CLIP_MAX_NORM if USE_GRAD_CLIP else None,
+        grad_accum_steps=GRAD_ACCUM_STEPS,
     )
 
     try:
@@ -177,6 +197,12 @@ def train():
             "n_train": n_train,
             "n_val": n_val,
             "augment": AUGMENT,
+            "use_ema": USE_EMA,
+            "ema_decay": EMA_DECAY,
+            "weight_decay": WEIGHT_DECAY,
+            "grad_accum_steps": GRAD_ACCUM_STEPS,
+            "use_grad_clip": USE_GRAD_CLIP,
+            "roi_split": USE_ROI_SPLIT,
         },
         "checkpoint": {
             "last_model_path": LAST_MODEL_PATH,
