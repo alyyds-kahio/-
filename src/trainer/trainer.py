@@ -24,7 +24,8 @@ class Trainer:
                  checkpoint_dir="./checkpoints", last_model_path="./checkpoints/last_model.pth",
                  best_model_path="./checkpoints/best_score_model.pth", logger=None,
                  scheduler_name="none", use_ema=False, ema_decay=0.999,
-                 weight_decay=0.0, grad_clip_max_norm=None, grad_accum_steps=1):
+                 weight_decay=0.0, grad_clip_max_norm=None, grad_accum_steps=1,
+                 use_warm_restarts=False, warm_restarts_t0=20, warm_restarts_t_mult=2):
         self.model = model
         self.criterion = criterion
         self.device = device
@@ -34,7 +35,10 @@ class Trainer:
 
         self.scheduler_name = scheduler_name
         self.scheduler = None
-        if scheduler_name == "cosine":
+        if use_warm_restarts:
+            self.scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+                self.optimizer, T_0=warm_restarts_t0, T_mult=warm_restarts_t_mult)
+        elif scheduler_name == "cosine":
             self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 self.optimizer, T_max=epochs)
 
@@ -126,6 +130,7 @@ class Trainer:
             total_loss = 0.0
             total_l1 = 0.0
             total_ssim = 0.0
+            total_edge = 0.0
             n_batches = 0
 
             self.logger.info(f"Epoch [{epoch + 1}/{self.epochs}]")
@@ -137,7 +142,7 @@ class Trainer:
                 y = y.to(self.device)
 
                 pred = self.model(x)
-                loss, l1_loss, ssim = self.criterion(pred, y)
+                loss, l1_loss, ssim, edge = self.criterion(pred, y)
 
                 (loss / self.grad_accum_steps).backward()
                 accum += 1
@@ -145,6 +150,7 @@ class Trainer:
                 total_loss += loss.item()
                 total_l1 += l1_loss.item()
                 total_ssim += ssim.item()
+                total_edge += edge.item() if torch.is_tensor(edge) else float(edge)
 
                 if accum >= self.grad_accum_steps:
                     if self.grad_clip_max_norm is not None:
@@ -161,6 +167,7 @@ class Trainer:
                     self.logger.info(f"  Total Loss: {loss.item():.6f}")
                     self.logger.info(f"  L1 Loss: {l1_loss.item():.6f}")
                     self.logger.info(f"  SSIM: {ssim.item():.6f}")
+                    self.logger.info(f"  Edge: {edge.item() if torch.is_tensor(edge) else edge:.6f}")
 
             # 末尾不足一个累积周期的残差
             if accum > 0:
@@ -175,11 +182,12 @@ class Trainer:
             avg_loss = total_loss / max(n_batches, 1)
             avg_l1 = total_l1 / max(n_batches, 1)
             avg_ssim = total_ssim / max(n_batches, 1)
+            avg_edge = total_edge / max(n_batches, 1)
             current_lr = self.optimizer.param_groups[0]["lr"]
 
             self.logger.info(
                 f"Train | Total Loss: {avg_loss:.6f} | L1: {avg_l1:.6f} "
-                f"| SSIM: {avg_ssim:.6f} | LR: {current_lr:.2e}"
+                f"| SSIM: {avg_ssim:.6f} | Edge: {avg_edge:.6f} | LR: {current_lr:.2e}"
             )
 
             # ======================

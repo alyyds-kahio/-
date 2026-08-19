@@ -33,6 +33,13 @@ from src.config import (
     USE_GRAD_CLIP,
     GRAD_CLIP_MAX_NORM,
     USE_ROI_SPLIT,
+    USE_WARM_RESTARTS,
+    WARM_RESTARTS_T0,
+    WARM_RESTARTS_T_MULT,
+    USE_EDGE_LOSS,
+    EDGE_LOSS_WEIGHT,
+    USE_ATTENTION,
+    ATTENTION_TYPE,
 )
 from src.data.loaders import build_train_val_loaders
 from src.models import build_model
@@ -104,11 +111,19 @@ def train():
     # Model / Loss
     # ======================
 
-    model = build_model(model_name).to(DEVICE)
+    # 轻量 Attention 仅对 pix2pix_unet 生效（默认关，不影响其他模型）
+    model_kwargs = {}
+    if model_name == "pix2pix_unet" and USE_ATTENTION:
+        model_kwargs["use_attention"] = True
+    model = build_model(model_name, **model_kwargs).to(DEVICE)
     logger.info(f"Model loaded: {model_name}")
     param_count = sum(p.numel() for p in model.parameters())
 
-    criterion = build_loss(LOSS_NAME, ssim_weight=SSIM_WEIGHT)
+    criterion = build_loss(
+        LOSS_NAME,
+        ssim_weight=SSIM_WEIGHT,
+        edge_weight=EDGE_LOSS_WEIGHT if USE_EDGE_LOSS else 0.0,
+    )
 
     # 配置阶段
     log_training_config(logger, {
@@ -133,6 +148,11 @@ def train():
         "grad_accum_steps": GRAD_ACCUM_STEPS,
         "use_grad_clip": USE_GRAD_CLIP,
         "roi_split": USE_ROI_SPLIT,
+        "warm_restarts": USE_WARM_RESTARTS,
+        "edge_loss": USE_EDGE_LOSS,
+        "edge_loss_weight": EDGE_LOSS_WEIGHT if USE_EDGE_LOSS else 0.0,
+        "attention": USE_ATTENTION,
+        "attention_type": ATTENTION_TYPE,
     })
 
     # ======================
@@ -163,6 +183,9 @@ def train():
         weight_decay=WEIGHT_DECAY,
         grad_clip_max_norm=GRAD_CLIP_MAX_NORM if USE_GRAD_CLIP else None,
         grad_accum_steps=GRAD_ACCUM_STEPS,
+        use_warm_restarts=USE_WARM_RESTARTS,
+        warm_restarts_t0=WARM_RESTARTS_T0,
+        warm_restarts_t_mult=WARM_RESTARTS_T_MULT,
     )
 
     try:
@@ -203,6 +226,11 @@ def train():
             "grad_accum_steps": GRAD_ACCUM_STEPS,
             "use_grad_clip": USE_GRAD_CLIP,
             "roi_split": USE_ROI_SPLIT,
+            "warm_restarts": USE_WARM_RESTARTS,
+            "edge_loss": USE_EDGE_LOSS,
+            "edge_loss_weight": EDGE_LOSS_WEIGHT if USE_EDGE_LOSS else 0.0,
+            "attention": USE_ATTENTION,
+            "attention_type": ATTENTION_TYPE,
         },
         "checkpoint": {
             "last_model_path": LAST_MODEL_PATH,

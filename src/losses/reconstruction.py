@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .edge_loss import edge_loss as _edge_loss
+
 
 class ReconstructionLoss(nn.Module):
     """
@@ -23,7 +25,8 @@ class ReconstructionLoss(nn.Module):
 
     def __init__(
             self,
-            ssim_weight=0.5
+            ssim_weight=0.5,
+            edge_weight=0.0
     ):
 
         super().__init__()
@@ -31,6 +34,7 @@ class ReconstructionLoss(nn.Module):
         self.l1 = nn.L1Loss()
 
         self.ssim_weight = ssim_weight
+        self.edge_weight = edge_weight  # 0 = 关闭边缘 loss
 
     @staticmethod
     def _ssim(
@@ -115,8 +119,14 @@ class ReconstructionLoss(nn.Module):
 
         )
 
+        edge = 0.0
+        if self.edge_weight > 0:
+            edge = _edge_loss(prediction, target)
+            total_loss = total_loss + self.edge_weight * edge
+
         return (
             total_loss,
             l1_loss,
-            ssim
+            ssim,
+            edge
         )

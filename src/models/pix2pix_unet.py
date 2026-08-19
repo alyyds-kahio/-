@@ -1,6 +1,8 @@
 import torch
 from torch import nn
 
+from .attention import AttentionGate
+
 
 class Pix2PixUNet(nn.Module):
     """Pix2Pix 风格 U-Net Generator（适配当前 1 通道灰度 paired 任务）。
@@ -17,9 +19,11 @@ class Pix2PixUNet(nn.Module):
     - 通道缩放为 32→64→128→256（原 64→128→256→512→512→512），适配 CPU 训练
     """
 
-    def __init__(self, in_channels=1, out_channels=1, features=(32, 64, 128, 256)):
+    def __init__(self, in_channels=1, out_channels=1, features=(32, 64, 128, 256),
+                 use_attention=False):
         super().__init__()
         self.features = features
+        self.use_attention = use_attention
 
         # Encoder（下采样，stride=2）
         self.encoders = nn.ModuleList()
@@ -54,6 +58,12 @@ class Pix2PixUNet(nn.Module):
                 nn.ReLU(inplace=True),
             ))
 
+        # 轻量 Attention Gate（可选，作用于 skip concat 前）
+        self.attentions = nn.ModuleList()
+        if use_attention:
+            for i in range(len(rev) - 1):
+                self.attentions.append(AttentionGate(rev[i + 1], rev[i + 1]))
+
         # 最后一层上采样（无 skip 可拼）
         self.last_up = nn.ConvTranspose2d(
             rev[-1], rev[-1], 3, stride=2, padding=1, output_padding=1)
@@ -75,6 +85,8 @@ class Pix2PixUNet(nn.Module):
         for i in range(len(self.upconvs)):
             up = self.upconvs[i](x)
             skip = skips[len(skips) - 2 - i]   # 对应 encoder 层
+            if self.use_attention:
+                skip = self.attentions[i](skip, up)   # gate = 上采样后的 up
             up = torch.cat([up, skip], dim=1)
             x = self.decoders[i](up)
 

@@ -70,3 +70,15 @@ GRAD_ACCUM_STEPS = 2        # 梯度累积（1=关；2 等效 batch 8）
 USE_GRAD_CLIP = False       # 梯度裁剪开关
 GRAD_CLIP_MAX_NORM = 1.0
 USE_ROI_SPLIT = False       # train/val 按 ROI 分组划分（默认关；True 时 val 只含未见 ROI，val_ratio 用 VAL_RATIO）
+
+# ======================
+# E06_BOOST_PLUS 综合优化开关（默认全关，独立可开关）
+# ======================
+
+USE_WARM_RESTARTS = True    # WarmRestarts 学习率调度（True 时覆盖 SCHEDULER_NAME）
+WARM_RESTARTS_T0 = 20       # WarmRestarts 首次重启周期（epoch）
+WARM_RESTARTS_T_MULT = 2    # WarmRestarts 每次重启周期倍数
+USE_EDGE_LOSS = True        # 边缘/结构一致性 Loss（Sobel 边缘）
+EDGE_LOSS_WEIGHT = 0.5      # Edge Loss 权重
+USE_ATTENTION = True        # 轻量 Attention（Attention Gate，作用于 skip connection）
+ATTENTION_TYPE = "gate"     # 注意力类型（当前支持 "gate"）
