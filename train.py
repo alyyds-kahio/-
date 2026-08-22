@@ -40,11 +40,16 @@ from src.config import (
     EDGE_LOSS_WEIGHT,
     USE_ATTENTION,
     ATTENTION_TYPE,
+    USE_GAN,
+    GAN_WEIGHT,
 )
 from src.data.loaders import build_train_val_loaders
 from src.models import build_model
+from src.models.patchgan import PatchGAN
 from src.losses import build_loss
+from src.losses.gan import GANLoss
 from src.trainer.trainer import Trainer
+from src.trainer.pix2pix_trainer import Pix2PixTrainer
 from src.utils.logger import (
     setup_logging,
     get_startup_info,
@@ -115,8 +120,11 @@ def train():
     model_kwargs = {}
     if model_name == "pix2pix_unet" and USE_ATTENTION:
         model_kwargs["use_attention"] = True
-    model = build_model(model_name, **model_kwargs).to(DEVICE)
-    logger.info(f"Model loaded: {model_name}")
+
+    # E06-C 完整 Pix2Pix：Generator 用 pix2pix_generator（6 层）
+    gen_name = "pix2pix_generator" if USE_GAN else model_name
+    model = build_model(gen_name, **model_kwargs).to(DEVICE)
+    logger.info(f"Model loaded: {gen_name}")
     param_count = sum(p.numel() for p in model.parameters())
 
     criterion = build_loss(
@@ -153,6 +161,8 @@ def train():
         "edge_loss_weight": EDGE_LOSS_WEIGHT if USE_EDGE_LOSS else 0.0,
         "attention": USE_ATTENTION,
         "attention_type": ATTENTION_TYPE,
+        "use_gan": USE_GAN,
+        "gan_weight": GAN_WEIGHT,
     })
 
     # ======================
@@ -168,25 +178,44 @@ def train():
         last_model_path = LAST_MODEL_PATH
         best_model_path = BEST_MODEL_PATH
 
-    trainer = Trainer(
-        model=model,
-        criterion=criterion,
-        device=DEVICE,
-        lr=LEARNING_RATE,
-        epochs=EPOCHS,
-        checkpoint_dir=checkpoint_dir,
-        last_model_path=last_model_path,
-        best_model_path=best_model_path,
-        scheduler_name=SCHEDULER_NAME,
-        use_ema=USE_EMA,
-        ema_decay=EMA_DECAY,
-        weight_decay=WEIGHT_DECAY,
-        grad_clip_max_norm=GRAD_CLIP_MAX_NORM if USE_GRAD_CLIP else None,
-        grad_accum_steps=GRAD_ACCUM_STEPS,
-        use_warm_restarts=USE_WARM_RESTARTS,
-        warm_restarts_t0=WARM_RESTARTS_T0,
-        warm_restarts_t_mult=WARM_RESTARTS_T_MULT,
-    )
+    if USE_GAN:
+        # 完整 Pix2Pix：Generator + PatchGAN + Pix2PixTrainer
+        discriminator = PatchGAN(in_channels=2, base=64).to(DEVICE)
+        gan_loss = GANLoss()
+        logger.info(f"Discriminator (PatchGAN): {sum(p.numel() for p in discriminator.parameters()):,} params")
+        trainer = Pix2PixTrainer(
+            generator=model,
+            discriminator=discriminator,
+            criterion=criterion,
+            gan_loss=gan_loss,
+            device=DEVICE,
+            lr=LEARNING_RATE,
+            epochs=EPOCHS,
+            gan_weight=GAN_WEIGHT,
+            checkpoint_dir=checkpoint_dir,
+            last_model_path=last_model_path,
+            best_model_path=best_model_path,
+        )
+    else:
+        trainer = Trainer(
+            model=model,
+            criterion=criterion,
+            device=DEVICE,
+            lr=LEARNING_RATE,
+            epochs=EPOCHS,
+            checkpoint_dir=checkpoint_dir,
+            last_model_path=last_model_path,
+            best_model_path=best_model_path,
+            scheduler_name=SCHEDULER_NAME,
+            use_ema=USE_EMA,
+            ema_decay=EMA_DECAY,
+            weight_decay=WEIGHT_DECAY,
+            grad_clip_max_norm=GRAD_CLIP_MAX_NORM if USE_GRAD_CLIP else None,
+            grad_accum_steps=GRAD_ACCUM_STEPS,
+            use_warm_restarts=USE_WARM_RESTARTS,
+            warm_restarts_t0=WARM_RESTARTS_T0,
+            warm_restarts_t_mult=WARM_RESTARTS_T_MULT,
+        )
 
     try:
         trainer.fit(train_loader, val_loader, resume=args.resume)
@@ -231,6 +260,8 @@ def train():
             "edge_loss_weight": EDGE_LOSS_WEIGHT if USE_EDGE_LOSS else 0.0,
             "attention": USE_ATTENTION,
             "attention_type": ATTENTION_TYPE,
+            "use_gan": USE_GAN,
+            "gan_weight": GAN_WEIGHT,
         },
         "checkpoint": {
             "last_model_path": LAST_MODEL_PATH,

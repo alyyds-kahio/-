@@ -14,6 +14,16 @@ def _pix2pix_unet_deep():
     return Pix2PixUNet(features=(54, 80, 128, 192, 256))
 
 
+def _pix2pix_unet_big():
+    """E06-B：Pix2Pix-UNet 加宽加深 6 层（64,128,256,512,512,512，bottleneck 4×4，~26M）。"""
+    return Pix2PixUNet(features=(64, 128, 256, 512, 512, 512))
+
+
+def _pix2pix_generator():
+    """E06-C 的 Generator（同 6 层 64,128,256,512,512,512），供完整 Pix2Pix 使用。"""
+    return Pix2PixUNet(features=(64, 128, 256, 512, 512, 512))
+
+
 MODEL_REGISTRY = {
     "unet": UNet,
     "unet_skip": UNetSkip,
@@ -24,6 +34,8 @@ MODEL_REGISTRY = {
     "pix2pix_unet_deep": _pix2pix_unet_deep,
     "pix2pix_resnet": Pix2PixResNet,
     "resunet": ResUNet,
+    "pix2pix_unet_big": _pix2pix_unet_big,
+    "pix2pix_generator": _pix2pix_generator,
 }
 
 

@@ -56,7 +56,7 @@ LOSS_NAME = "reconstruction"
 OPTIMIZER_NAME = "adam"
 SCHEDULER_NAME = "cosine"   # "none" 或 "cosine"（CosineAnnealingLR）
 LEARNING_RATE = 1e-4
-EPOCHS = 80                 # E06_BOOST 冲分：80 轮
+EPOCHS = 100                 # E06_BOOST 冲分：80 轮
 SSIM_WEIGHT = 0.7           # E06_BOOST：提高 SSIM 权重（原 0.5，对齐比赛评分口径）
 
 # ======================
@@ -64,9 +64,9 @@ SSIM_WEIGHT = 0.7           # E06_BOOST：提高 SSIM 权重（原 0.5，对齐�
 # ======================
 
 USE_EMA = True              # Exponential Moving Average
-EMA_DECAY = 0.999
+EMA_DECAY = 0.85
 WEIGHT_DECAY = 1e-4         # Adam weight decay（0=关）
-GRAD_ACCUM_STEPS = 2        # 梯度累积（1=关；2 等效 batch 8）
+GRAD_ACCUM_STEPS = 4        # 梯度累积（1=关；2 等效 batch 8）
 USE_GRAD_CLIP = False       # 梯度裁剪开关
 GRAD_CLIP_MAX_NORM = 1.0
 USE_ROI_SPLIT = False       # train/val 按 ROI 分组划分（默认关；True 时 val 只含未见 ROI，val_ratio 用 VAL_RATIO）
@@ -75,10 +75,17 @@ USE_ROI_SPLIT = False       # train/val 按 ROI 分组划分（默认关；True 
 # E06_BOOST_PLUS 综合优化开关（默认全关，独立可开关）
 # ======================
 
-USE_WARM_RESTARTS = True    # WarmRestarts 学习率调度（True 时覆盖 SCHEDULER_NAME）
+USE_WARM_RESTARTS = False    # WarmRestarts 学习率调度（True 时覆盖 SCHEDULER_NAME）
 WARM_RESTARTS_T0 = 20       # WarmRestarts 首次重启周期（epoch）
 WARM_RESTARTS_T_MULT = 2    # WarmRestarts 每次重启周期倍数
 USE_EDGE_LOSS = True        # 边缘/结构一致性 Loss（Sobel 边缘）
-EDGE_LOSS_WEIGHT = 0.5      # Edge Loss 权重
+EDGE_LOSS_WEIGHT = 0.7      # Edge Loss 权重
 USE_ATTENTION = True        # 轻量 Attention（Attention Gate，作用于 skip connection）
 ATTENTION_TYPE = "gate"     # 注意力类型（当前支持 "gate"）
+
+# ======================
+# E06-C：完整 Pix2Pix（Generator + Conditional PatchGAN）
+# ======================
+
+USE_GAN = False             # 完整 Pix2Pix：True 时用 Pix2PixTrainer（Generator + PatchGAN）
+GAN_WEIGHT = 0.01           # GAN Loss 权重（G loss = L1 + SSIM + GAN_WEIGHT × GAN）
